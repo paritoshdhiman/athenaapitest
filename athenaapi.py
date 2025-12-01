@@ -101,7 +101,7 @@ def credential_page():
                 st.session_state.client_id = client_id
                 st.session_state.client_secret = client_secret
                 st.session_state.creds_entered = True
-                st.experimental_rerun()
+                st.rerun()
 
 
 # ---------------------------
