@@ -80,27 +80,27 @@ def login():
 # Credentials Input Page
 # ---------------------------
 
-def credential_page():
-    st.title("Enter API Credentials")
+# def credential_page():
+#     st.title("Enter API Credentials")
 
-    if "client_id" not in st.session_state:
-        st.session_state.client_id = ""
-    if "client_secret" not in st.session_state:
-        st.session_state.client_secret = ""
+#     if "client_id" not in st.session_state:
+#         st.session_state.client_id = ""
+#     if "client_secret" not in st.session_state:
+#         st.session_state.client_secret = ""
 
-    with st.form("cred_form"):
-        client_id = st.text_input("Client ID", value=st.session_state.client_id)
-        client_secret = st.text_input("Client Secret", value=st.session_state.client_secret, type="password")
-        submit = st.form_submit_button("Save & Continue")
+#     with st.form("cred_form"):
+#         client_id = st.text_input("Client ID", value=st.session_state.client_id)
+#         client_secret = st.text_input("Client Secret", value=st.session_state.client_secret, type="password")
+#         submit = st.form_submit_button("Save & Continue")
 
-        if submit:
-            if client_id.strip() == "" or client_secret.strip() == "":
-                st.error("Both Client ID and Client Secret are required.")
-            else:
-                st.session_state.client_id = client_id
-                st.session_state.client_secret = client_secret
-                st.session_state.creds_entered = True
-                st.rerun()
+#         if submit:
+#             if client_id.strip() == "" or client_secret.strip() == "":
+#                 st.error("Both Client ID and Client Secret are required.")
+#             else:
+#                 st.session_state.client_id = client_id
+#                 st.session_state.client_secret = client_secret
+#                 st.session_state.creds_entered = True
+#                 st.rerun()
 
 
 # ---------------------------
@@ -111,6 +111,9 @@ def main_app():
 
     base_url = 'https://lyzy8gvjg8givgo-losadw1.adb.us-phoenix-1.oraclecloudapps.com/ords/los_adw_apex/v1'
     token_url = 'https://lyzy8gvjg8givgo-losadw1.adb.us-phoenix-1.oraclecloudapps.com/ords/los_adw_apex/oauth/token'
+
+    client_id = os.getenv("client_id")
+    client_secret = os.getenv("client_secret")
 
     st.title("Project & Well Details")
 
@@ -183,8 +186,8 @@ if __name__ == "__main__":
         login()
 
     # Step 2 — Ask for client credentials
-    elif "creds_entered" not in st.session_state or not st.session_state.get("creds_entered", False):
-        credential_page()
+    # elif "creds_entered" not in st.session_state or not st.session_state.get("creds_entered", False):
+    #     credential_page()
 
     # Step 3 — Run main app
     else:
