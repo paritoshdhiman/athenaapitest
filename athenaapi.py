@@ -123,8 +123,8 @@ def main_app():
         try:
             # 1. OAuth Token
             token = get_token(
-                st.session_state.client_id,
-                st.session_state.client_secret,
+                client_id,
+                client_secret,
                 token_url
             )
 
