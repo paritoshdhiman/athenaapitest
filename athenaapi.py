@@ -5,6 +5,9 @@ import streamlit as st
 
 st.set_page_config(layout='wide')
 
+VALID_USERNAME = os.getenv("VALID_USERNAME")
+VALID_PASSWORD = os.getenv("VALID_PASSWORD")
+
 # ---------------------------
 # Utility functions
 # ---------------------------
