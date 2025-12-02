@@ -5,11 +5,6 @@ import streamlit as st
 
 st.set_page_config(layout='wide')
 
-# === Auth config ===
-VALID_USERNAME = "athenatester"
-VALID_PASSWORD = "liberty1776!"
-
-
 # ---------------------------
 # Utility functions
 # ---------------------------
