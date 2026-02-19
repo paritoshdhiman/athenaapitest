@@ -38,15 +38,13 @@ def get_details(url: str, token: str) -> object:
 
 def flatten_all_json(raw_json: object, sep: str = "_") -> pd.DataFrame:
     """
-    Flattens dict/list JSON. Explodes lists repeatedly until no list columns remain.
-    Good for debug visibility (not used for pricing table).
+    Debug helper: flattens dict/list JSON and repeatedly explodes list columns.
     """
     if raw_json is None:
         return pd.DataFrame()
 
     df = pd.json_normalize(raw_json, sep=sep)
 
-    # Explode list-valued columns repeatedly
     while True:
         list_cols = [
             col for col in df.columns
@@ -63,7 +61,7 @@ def flatten_all_json(raw_json: object, sep: str = "_") -> pd.DataFrame:
 
 
 # ---------------------------
-# Pricing parsers (match your raw JSONs)
+# Pricing parsers (as you specified)
 # ---------------------------
 
 def _f(x):
@@ -73,77 +71,77 @@ def _f(x):
         return None
 
 
-def parse_completion_design(raw, project_number, well_id) -> pd.DataFrame:
+def parse_completion_design_items(raw, project_number, well_id) -> pd.DataFrame:
     """
-    raw = list of design dicts
-    each design has proppantsTypeMesh = list of proppant dicts (or empty)
+    completionDesign raw:
+      list of design dicts, each has proppantsTypeMesh: [ {...} ]
+    Map to:
+      item_code, name, uom, unit_price, discount_percentage, discounted_unit_price, quantity
     """
     rows = []
     designs = raw if isinstance(raw, list) else []
-    for design_idx, d in enumerate(designs):
+    for d in designs:
         proppants = d.get("proppantsTypeMesh", []) if isinstance(d, dict) else []
-        if not proppants:
-            continue
-
         for p in proppants:
             rows.append({
                 "project_number": project_number,
                 "well_id": str(well_id),
-                "source_attribute": "completionDesign",
-                "line_type": "proppant",
-                "design_idx": design_idx,
-                "orden": None,
+                "source": "completionDesign",
 
-                "catalog_external": p.get("proppantSizeCatalogExternal"),
-                "item_description": p.get("proppantCommercialName"),
-                "commercial_name": p.get("proppantCommercialName"),
-                "concentration": None,
-                "unit": p.get("unit"),
-
+                "item_code": p.get("proppantSizeCatalogExternal"),
+                "name": p.get("proppantCommercialName"),
+                "uom": p.get("unit"),
                 "unit_price": _f(p.get("unitPrice")),
-                "discount_pct": _f(p.get("discountPercentage")),
+                "discount_percentage": _f(p.get("discountPercentage")),
                 "discounted_unit_price": _f(p.get("discountedUnitPrice")),
-                "quoted_quantity": _f(p.get("quotedQuantity")),
+                "quantity": _f(p.get("quotedQuantity")),
             })
     return pd.DataFrame(rows)
 
 
-def parse_frac_chemicals(raw, project_number, well_id) -> pd.DataFrame:
+def parse_frac_chemicals_items(raw, project_number, well_id) -> pd.DataFrame:
     """
-    raw = list of group dicts
-    each group has chemTypes = list of chemical dicts
+    fracChemicals raw:
+      list of group dicts: [{"chemTypes":[{...}], ...}, ...]
+    chemTypes -> rows
+    Map to:
+      chemicalTypeCatalogExternal as item_code
+      commercialName as name
+      unit as uom
+      unitPrice
+      discount as discount_percentage
+      discountedUnitPrice
+      quotedQuantity as quantity
     """
     rows = []
     groups = raw if isinstance(raw, list) else []
-    for grp_idx, grp in enumerate(groups):
+    for grp in groups:
         chem_types = grp.get("chemTypes", []) if isinstance(grp, dict) else []
         for ch in chem_types:
             rows.append({
                 "project_number": project_number,
                 "well_id": str(well_id),
-                "source_attribute": "fracChemicals",
-                "line_type": "chemical",
-                "design_idx": grp_idx,
-                "orden": None,
+                "source": "fracChemicals",
 
-                "catalog_external": ch.get("chemicalTypeCatalogExternal"),
-                "item_description": ch.get("commercialName"),
-                "commercial_name": ch.get("commercialName"),
-                "concentration": ch.get("concentration"),
-                "unit": ch.get("unit"),
-
+                "item_code": ch.get("chemicalTypeCatalogExternal"),
+                "name": ch.get("commercialName"),
+                "uom": ch.get("unit"),
                 "unit_price": _f(ch.get("unitPrice")),
-                "discount_pct": _f(ch.get("discount")),  # field name is "discount"
+                "discount_percentage": _f(ch.get("discount")),  # note: field is "discount"
                 "discounted_unit_price": _f(ch.get("discountedUnitPrice")),
-                "quoted_quantity": _f(ch.get("quotedQuantity")),
+                "quantity": _f(ch.get("quotedQuantity")),
             })
     return pd.DataFrame(rows)
 
 
-def parse_cartage_charges(raw, project_number, well_id) -> pd.DataFrame:
+def parse_cartage_charges_items(raw, project_number, well_id) -> pd.DataFrame:
     """
-    raw = list of cartage dicts
-    measurementUnits = {"label": "..."}
+    cartageCharges raw: list of dicts
+    measurementUnits: {"label":"LBS"} -> uom
+    Map:
+      cartageChargeCatalogExternal as item_code
+      itemDescription as name
+      unitPrice, discountPercentage, discountedUnitPrice, quotedQuantity
     """
     rows = []
     items = raw if isinstance(raw, list) else []
@@ -152,29 +150,27 @@ def parse_cartage_charges(raw, project_number, well_id) -> pd.DataFrame:
         rows.append({
             "project_number": project_number,
             "well_id": str(well_id),
-            "source_attribute": "cartageCharges",
-            "line_type": "cartage",
-            "design_idx": None,
-            "orden": it.get("orden"),
+            "source": "cartageCharges",
 
-            "catalog_external": it.get("cartageChargeCatalogExternal"),
-            "item_description": it.get("itemDescription"),
-            "commercial_name": None,
-            "concentration": None,
-            "unit": (mu or {}).get("label"),
-
+            "item_code": it.get("cartageChargeCatalogExternal"),
+            "name": it.get("itemDescription"),
+            "uom": (mu or {}).get("label"),
             "unit_price": _f(it.get("unitPrice")),
-            "discount_pct": _f(it.get("discountPercentage")),
+            "discount_percentage": _f(it.get("discountPercentage")),
             "discounted_unit_price": _f(it.get("discountedUnitPrice")),
-            "quoted_quantity": _f(it.get("quotedQuantity")),
+            "quantity": _f(it.get("quotedQuantity")),
         })
     return pd.DataFrame(rows)
 
 
-def parse_service_charges(raw, project_number, well_id) -> pd.DataFrame:
+def parse_service_charges_items(raw, project_number, well_id) -> pd.DataFrame:
     """
-    raw = list of service charge dicts
-    measurementUnits = {"label": "..."}
+    serviceCharges raw: list of dicts
+    measurementUnits: {"label":"DAY"} -> uom
+    Map:
+      serviceChargeCatalogExternal as item_code
+      itemDescription as name
+      unitPrice, discountPercentage, discountedUnitPrice, quotedQuantity
     """
     rows = []
     items = raw if isinstance(raw, list) else []
@@ -183,21 +179,15 @@ def parse_service_charges(raw, project_number, well_id) -> pd.DataFrame:
         rows.append({
             "project_number": project_number,
             "well_id": str(well_id),
-            "source_attribute": "serviceCharges",
-            "line_type": "service",
-            "design_idx": None,
-            "orden": it.get("orden"),
+            "source": "serviceCharges",
 
-            "catalog_external": it.get("serviceChargeCatalogExternal"),
-            "item_description": it.get("itemDescription"),
-            "commercial_name": None,
-            "concentration": None,
-            "unit": (mu or {}).get("label"),
-
+            "item_code": it.get("serviceChargeCatalogExternal"),
+            "name": it.get("itemDescription"),
+            "uom": (mu or {}).get("label"),
             "unit_price": _f(it.get("unitPrice")),
-            "discount_pct": _f(it.get("discountPercentage")),
+            "discount_percentage": _f(it.get("discountPercentage")),
             "discounted_unit_price": _f(it.get("discountedUnitPrice")),
-            "quoted_quantity": _f(it.get("quotedQuantity")),
+            "quantity": _f(it.get("quotedQuantity")),
         })
     return pd.DataFrame(rows)
 
@@ -270,8 +260,8 @@ def main_app():
             st.write("Well IDs:")
             st.dataframe(df_wells)
 
-            # Attributes to pull (keep your existing ones)
-            attributes = [
+            # Keep your existing debug attributes
+            debug_attributes = [
                 "generalWellInformation",
                 "completionDesign",
                 "fracChemicals",
@@ -284,7 +274,8 @@ def main_app():
             st.write("Well Information (raw + flattened):")
             if not df_wells.empty and "id" in df_wells.columns:
                 for wid in df_wells["id"].dropna().unique():
-                    for att in attributes:
+
+                    for att in debug_attributes:
                         api_url = f"{base_url}/{att}?well_id={wid}"
                         st.write(api_url)
                         raw = get_details(api_url, token)
@@ -294,50 +285,55 @@ def main_app():
                         st.write(f"{wid} - {att}")
                         st.dataframe(df_flat)
 
-                        # Build pricing table from the 4 pricing attributes
+                        # Build pricing items table
                         if att == "completionDesign":
-                            pricing_frames.append(parse_completion_design(raw, project_number, wid))
+                            pricing_frames.append(parse_completion_design_items(raw, project_number, wid))
                         elif att == "fracChemicals":
-                            pricing_frames.append(parse_frac_chemicals(raw, project_number, wid))
+                            pricing_frames.append(parse_frac_chemicals_items(raw, project_number, wid))
                         elif att == "cartageCharges":
-                            pricing_frames.append(parse_cartage_charges(raw, project_number, wid))
+                            pricing_frames.append(parse_cartage_charges_items(raw, project_number, wid))
                         elif att == "serviceCharges":
-                            pricing_frames.append(parse_service_charges(raw, project_number, wid))
+                            pricing_frames.append(parse_service_charges_items(raw, project_number, wid))
 
                 # Unified pricing table
-                df_pricing_all = pd.concat(
-                    [x for x in pricing_frames if x is not None and not x.empty],
-                    ignore_index=True
-                ) if pricing_frames else pd.DataFrame()
+                df_items = (
+                    pd.concat([x for x in pricing_frames if x is not None and not x.empty], ignore_index=True)
+                    if pricing_frames else pd.DataFrame()
+                )
 
-                if not df_pricing_all.empty:
-                    # Extended totals
-                    df_pricing_all["extended_discounted"] = (
-                        df_pricing_all["discounted_unit_price"].fillna(0)
-                        * df_pricing_all["quoted_quantity"].fillna(0)
-                    )
-                    df_pricing_all["extended_list"] = (
-                        df_pricing_all["unit_price"].fillna(0)
-                        * df_pricing_all["quoted_quantity"].fillna(0)
-                    )
+                if not df_items.empty:
+                    # Useful computed fields
+                    df_items["extended_discounted"] = df_items["discounted_unit_price"].fillna(0) * df_items["quantity"].fillna(0)
+                    df_items["extended_list"] = df_items["unit_price"].fillna(0) * df_items["quantity"].fillna(0)
 
-                    st.subheader("Pricing + Quoted Quantity (All Wells / All Pricing Attributes)")
-                    st.dataframe(df_pricing_all)
+                    # Optional: stable column order
+                    col_order = [
+                        "project_number", "well_id", "source",
+                        "item_code", "name", "uom",
+                        "unit_price", "discount_percentage", "discounted_unit_price",
+                        "quantity", "extended_discounted", "extended_list"
+                    ]
+                    df_items = df_items[[c for c in col_order if c in df_items.columns]]
 
-                    st.subheader("Totals by Well + Line Type")
+                    st.subheader("All Pricing Items (All Wells)")
+                    st.dataframe(df_items)
+
+                    st.subheader("Totals by Well + Source")
                     df_summary = (
-                        df_pricing_all
-                        .groupby(["well_id", "line_type"], as_index=False)
+                        df_items
+                        .groupby(["well_id", "source"], as_index=False)
                         .agg(
-                            lines=("line_type", "size"),
-                            total_qty=("quoted_quantity", "sum"),
+                            lines=("item_code", "size"),
+                            total_qty=("quantity", "sum"),
                             total_discounted=("extended_discounted", "sum"),
                             total_list=("extended_list", "sum"),
                         )
                     )
                     st.dataframe(df_summary)
+
                 else:
-                    st.info("No pricing line items found (all pricing arrays empty).")
+                    st.info("No pricing items found (all pricing arrays empty).")
+
             else:
                 st.info("No wells found for this project.")
 
